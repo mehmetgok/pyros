@@ -1,7 +1,8 @@
 
 
-# $ roslaunch turtlebot3_gazebo turtlebot3_gazebo_rviz.launch
 # $ roslaunch turtlebot3_gazebo turtlebot3_empty_world.launch
+# $ roslaunch turtlebot3_gazebo turtlebot3_gazebo_rviz.launch
+
 
 from math import pi
 
