@@ -5,7 +5,7 @@
 # https://github.com/kulbir-ahluwalia/Turtlebot_3_PID/blob/master/control_bot/Scripts/final.py
 
 
-
+from datetime import datetime
 import rospy
 from geometry_msgs.msg import Twist, Point
 import tf
@@ -14,12 +14,15 @@ from tf.transformations import euler_from_quaternion
 import numpy as np
 from tf.transformations import quaternion_from_euler
 
-
+# Turtlebot3 icin
 from geometry_msgs.msg import PoseStamped
+# Kendi robotumuz icin
 from geometry_msgs.msg import PoseWithCovarianceStamped
 
 # TB3 icin
 from nav_msgs.msg import Odometry
+
+from std_msgs.msg import Float32
 
 
 kp_distance = 1
@@ -42,15 +45,24 @@ class GotoPoint():
         self.odom_frame = 'odom'
 
         self.counter = 0
+
+        self.log_file = open('emek_log.txt')
         
         # RViz den hedef koordinatı al
         rospy.Subscriber("/move_base_simple/goal", PoseStamped, self.goal_callback)
+
+
+        rospy.Subscriber('current_data', Float32, self.update_current)
+        rospy.Subscriber('voltage_data', Float32, self.update_voltage)
     
         # Normal Robot Icin
         # rospy.Subscriber("/robot_pose_ekf/odom_combined", PoseWithCovarianceStamped, self.pose_callback)
 
         # Turtlebot3 icin
         # rospy.Subscriber("/odom", Odometry, self.pose_callback)
+
+        self.current_data = 0.0
+        self.voltage_data = 0.0
 
 
         try:
@@ -67,8 +79,6 @@ class GotoPoint():
         (position, rotation) = self.get_odom()
 
 
-     
-
         """
         (goal_x, goal_y, goal_z) = self.getkey()
         if goal_z > 180 or goal_z < -180:
@@ -77,7 +87,13 @@ class GotoPoint():
         
         goal_z = np.deg2rad(goal_z)
         """
-   
+    
+    def update_current(self, data):
+        self.current_data = data.data*1000.0
+      
+    def update_voltage(self, data):
+        self.voltage_data = data.data
+  
     
     def go2goal(self):
 
@@ -88,6 +104,10 @@ class GotoPoint():
         angular_speed = 1  # kp_angular
 
         (position, rotation) = self.get_odom()
+
+  
+
+
 
         goal_distance = sqrt(pow(self.goal_x - position.x, 2) + pow(self.goal_y - position.y, 2))
         #distance is the error for length, x,y
@@ -118,6 +138,8 @@ class GotoPoint():
             self.rate.sleep()
 
 
+
+
   
         while distance > 0.05:
             (position, rotation) = self.get_odom()
@@ -130,7 +152,6 @@ class GotoPoint():
                 rotation = 2*pi + rotation
             elif last_rotation < -pi+0.1 and rotation > 0:
                 rotation = -2*pi + rotation
-
 
             diff_angle = path_angle - previous_angle
             diff_distance = distance - previous_distance
@@ -156,6 +177,14 @@ class GotoPoint():
             previous_distance = distance
             total_distance = total_distance + distance
             print("Current positin and rotation are: ", (position, rotation))
+
+            now = datetime.now() # current date and time
+
+            time_str = now.strftime("%H:%M:%S")
+
+
+            self.f.write(time_str + ";" + str(float(position.x)) +";"+ str(float(position.y)) + ";" + 
+                str(self.current_data) + ";" + str(self.voltage_data) + " ;" + str(move_cmd.linear.x) + ";"+ str(move_cmd.angular.z) + "\n")
         
 
         (position, rotation) = self.get_odom()
