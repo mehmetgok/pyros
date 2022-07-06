@@ -15,6 +15,13 @@ import numpy as np
 from tf.transformations import quaternion_from_euler
 
 
+from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped
+
+# TB3 icin
+from nav_msgs.msg import Odometry
+
+
 kp_distance = 1
 ki_distance = 0.01
 kd_distance = 0.5
@@ -29,10 +36,22 @@ class GotoPoint():
         rospy.on_shutdown(self.shutdown)
         self.cmd_vel = rospy.Publisher('cmd_vel', Twist, queue_size=5)
         position = Point()
-        move_cmd = Twist()
-        r = rospy.Rate(10)
+        
+        self.rate = rospy.Rate(10)
         self.tf_listener = tf.TransformListener()
         self.odom_frame = 'odom'
+
+        self.counter = 0
+        
+        # RViz den hedef koordinatı al
+        rospy.Subscriber("/move_base_simple/goal", PoseStamped, self.goal_callback)
+    
+        # Normal Robot Icin
+        # rospy.Subscriber("/robot_pose_ekf/odom_combined", PoseWithCovarianceStamped, self.pose_callback)
+
+        # Turtlebot3 icin
+        # rospy.Subscriber("/odom", Odometry, self.pose_callback)
+
 
         try:
             self.tf_listener.waitForTransform(self.odom_frame, 'base_footprint', rospy.Time(), rospy.Duration(1.0))
@@ -48,19 +67,29 @@ class GotoPoint():
         (position, rotation) = self.get_odom()
 
 
-        last_rotation = 0
-        linear_speed = 1   # kp_distance
-        angular_speed = 1  # kp_angular
+     
 
-
+        """
         (goal_x, goal_y, goal_z) = self.getkey()
         if goal_z > 180 or goal_z < -180:
             print("you input wrong z range.")
             self.shutdown()
         
         goal_z = np.deg2rad(goal_z)
- 
-        goal_distance = sqrt(pow(goal_x - position.x, 2) + pow(goal_y - position.y, 2))
+        """
+   
+    
+    def go2goal(self):
+
+        move_cmd = Twist()
+
+        last_rotation = 0
+        linear_speed = 1   # kp_distance
+        angular_speed = 1  # kp_angular
+
+        (position, rotation) = self.get_odom()
+
+        goal_distance = sqrt(pow(self.goal_x - position.x, 2) + pow(self.goal_y - position.y, 2))
         #distance is the error for length, x,y
         distance = goal_distance
         previous_distance = 0
@@ -68,38 +97,34 @@ class GotoPoint():
 
         previous_angle = 0
         total_angle = 0
-
-
-        while abs(rotation - goal_z) > 0.05:
+    
+        while abs(rotation - self.goal_z) > 0.05:
             (position, rotation) = self.get_odom()
-            if goal_z >= 0:
-                if rotation <= goal_z and rotation >= goal_z - pi:
+            if self.goal_z >= 0:
+                if rotation <= self.goal_z and rotation >= self.goal_z - pi:
                     move_cmd.linear.x = 0.00
                     move_cmd.angular.z = 0.5
                 else:
                     move_cmd.linear.x = 0.00
                     move_cmd.angular.z = -0.5
             else:
-                if rotation <= goal_z + pi and rotation > goal_z:
+                if rotation <= self.goal_z + pi and rotation > self.goal_z:
                     move_cmd.linear.x = 0.00
                     move_cmd.angular.z = -0.5
                 else:
                     move_cmd.linear.x = 0.00
                     move_cmd.angular.z = 0.5
             self.cmd_vel.publish(move_cmd)
-            r.sleep()
+            self.rate.sleep()
 
 
-   
+  
         while distance > 0.05:
             (position, rotation) = self.get_odom()
             x_start = position.x
             y_start = position.y
             #path_angle = error
-            path_angle = atan2(goal_y - y_start, goal_x- x_start)
-
-      
-
+            path_angle = atan2(self.goal_y - y_start, self.goal_x- x_start)
 
             if last_rotation > pi-0.1 and rotation <= 0:
                 rotation = 2*pi + rotation
@@ -110,7 +135,7 @@ class GotoPoint():
             diff_angle = path_angle - previous_angle
             diff_distance = distance - previous_distance
 
-            distance = sqrt(pow((goal_x - x_start), 2) + pow((goal_y - y_start), 2))
+            distance = sqrt(pow((self.goal_x - x_start), 2) + pow((self.goal_y - y_start), 2))
 
             control_signal_distance = kp_distance*distance + ki_distance*total_distance + kd_distance*diff_distance
 
@@ -127,7 +152,7 @@ class GotoPoint():
 
             last_rotation = rotation
             self.cmd_vel.publish(move_cmd)
-            r.sleep()
+            self.rate.sleep()
             previous_distance = distance
             total_distance = total_distance + distance
             print("Current positin and rotation are: ", (position, rotation))
@@ -137,13 +162,34 @@ class GotoPoint():
         print("Current positin and rotation are: ", (position, rotation))
 
         print("reached :)   ^_^")
-        
-        
-
-
+         
         # rospy.loginfo("Stopping the robot...")
         self.cmd_vel.publish(Twist())
-        return
+
+
+
+    
+    def goal_callback(self, msg):
+        # Copying for simplicity
+        position = msg.pose.position
+        quat = msg.pose.orientation
+        rospy.loginfo("Point Position: [ %f, %f, %f ]" % (position.x, position.y, position.z))
+        rospy.loginfo("Quat Orientation: [ %f, %f, %f, %f]" % (quat.x, quat.y, quat.z, quat.w))
+
+        # Also print Roll, Pitch, Yaw
+        euler = tf.transformations.euler_from_quaternion([quat.x, quat.y, quat.z, quat.w])
+        rospy.loginfo("Euler Angles: %s" % str((euler[2]*180)/pi))
+        
+        self.goal_x = position.x
+        self.goal_y = position.y
+        self.goal_z = euler[2]
+        
+        self.go2goal()
+
+        
+
+        # self.turn2goal(euler[2])
+
 
     def getkey(self):
         global x_input, y_input, z_input
@@ -172,22 +218,15 @@ class GotoPoint():
         rospy.sleep(1)
 
 
-print("Enter final x position")
-x_final = input()
-print("Enter final y position")
-y_final = input()
-print("Enter final angle position")
-angle_final = input()
-
-final = [x_final, y_final, angle_final]
-final_position = np.array(final)
-
-x_input = final_position[0]
-y_input = final_position[1]
-z_input = final_position[2]
-
-
 # time.sleep(5)
 
+"""
 while not rospy.is_shutdown():
     GotoPoint()
+"""
+
+
+if __name__ == '__main__':
+   
+    GotoPoint()
+    rospy.spin()

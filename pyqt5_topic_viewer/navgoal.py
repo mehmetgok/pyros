@@ -43,7 +43,11 @@ class PoseListener:
         euler = tf.transformations.euler_from_quaternion([quat.x, quat.y, quat.z, quat.w])
         rospy.loginfo("Euler Angles: %s" % str((euler[2]*180)/pi))  
 
+        print("mesaj geldi")
+
         self.turn2goal(euler[2])
+
+    
     
     def pose_callback(self, msg):
         position = msg.pose.pose.position
@@ -92,4 +96,4 @@ class PoseListener:
 if __name__ == '__main__':
     rospy.init_node('number_counter')
     PoseListener()
-    rospy.spin()
+    # rospy.spin()
