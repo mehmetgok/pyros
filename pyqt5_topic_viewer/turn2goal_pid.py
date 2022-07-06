@@ -24,6 +24,10 @@ from nav_msgs.msg import Odometry
 
 from std_msgs.msg import Float32
 
+# Yol cizdirmek icin
+from nav_msgs.msg import Odometry, Path
+
+
 
 kp_distance = 1
 ki_distance = 0.01
@@ -46,9 +50,9 @@ class GotoPoint():
 
         self.counter = 0
 
-        self.log_file = open('emek_log.txt')
+        self.log_file = open('emek_log.txt','w')
         
-        # RViz den hedef koordinatı al
+        # RViz den hedef koordinati al
         rospy.Subscriber("/move_base_simple/goal", PoseStamped, self.goal_callback)
 
 
@@ -87,6 +91,13 @@ class GotoPoint():
         
         goal_z = np.deg2rad(goal_z)
         """
+        
+        self.xAnt = 0.0
+        self.yAnt = 0.0
+        self.count = 0
+
+
+
     
     def update_current(self, data):
         self.current_data = data.data*1000.0
@@ -137,10 +148,6 @@ class GotoPoint():
             self.cmd_vel.publish(move_cmd)
             self.rate.sleep()
 
-
-
-
-  
         while distance > 0.05:
             (position, rotation) = self.get_odom()
             x_start = position.x
@@ -179,14 +186,10 @@ class GotoPoint():
             print("Current positin and rotation are: ", (position, rotation))
 
             now = datetime.now() # current date and time
-
             time_str = now.strftime("%H:%M:%S")
-
-
-            self.f.write(time_str + ";" + str(float(position.x)) +";"+ str(float(position.y)) + ";" + 
-                str(self.current_data) + ";" + str(self.voltage_data) + " ;" + str(move_cmd.linear.x) + ";"+ str(move_cmd.angular.z) + "\n")
+            self.log_file.write("Time : " + time_str + "; " + "X : " + str(float(position.x)) +"; "+  "Y : " + str(float(position.y)) + "; " + 
+                "Current_data : " +  str(self.current_data) + "; " + "Voltage_data : " +  str(self.voltage_data) + "; " + "Linear_x : " + str(move_cmd.linear.x) + "; " + "Angular_z : " + str(move_cmd.angular.z) + "\n")
         
-
         (position, rotation) = self.get_odom()
         print("Current positin and rotation are: ", (position, rotation))
 
